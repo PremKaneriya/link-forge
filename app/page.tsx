@@ -7,17 +7,35 @@ export default function Home() {
   const [shortUrl, setShortUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async () => {
     if (!longUrl) return;
     
     setIsLoading(true);
+    setError('');
     
-    // Simulate API call
-    setTimeout(() => {
-      setShortUrl(`https://shr.tk/${Math.random().toString(36).substr(2, 8)}`);
+    try {
+      const res = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ longUrl }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to shorten URL');
+      }
+
+      const data = await res.json();
+      setShortUrl(data.shortUrl);
+    } catch (error) {
+      console.error('Error shortening URL:', error);
+      setError('Failed to shorten URL. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -105,6 +123,13 @@ export default function Home() {
                 </div>
               </button>
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-4 p-4 bg-red-500/20 border border-red-400/30 rounded-xl backdrop-blur-sm">
+                <p className="text-red-300 text-center">{error}</p>
+              </div>
+            )}
 
             {/* Result */}
             {shortUrl && (

@@ -1,16 +1,24 @@
-import { redirect } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
+// app/[shortCode]/page.tsx
+import { prisma } from '@/lib/prisma';
+import { redirect, notFound } from 'next/navigation';
 
-const prisma = new PrismaClient();
+export default async function RedirectPage({ 
+  params 
+}: { 
+  params: { shortCode: string } 
+}) {
+  try {
+    const link = await prisma.link.findUnique({
+      where: { shortCode: params.shortCode },
+    });
 
-export default async function RedirectPage({ params }: { params: { shortCode: string } }) {
-  const link = await prisma.link.findUnique({
-    where: { shortCode: params.shortCode },
-  });
-
-  if (link) {
-    redirect(link.longUrl);
-  } else {
-    return <p>404 Not Found</p>;
+    if (link) {
+      redirect(link.longUrl);
+    } else {
+      notFound();
+    }
+  } catch (error) {
+    console.error('Database error:', error);
+    notFound();
   }
 }

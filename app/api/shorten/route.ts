@@ -1,27 +1,59 @@
+// app/api/shorten/route.ts
+import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-function generateShortCode(length = 6) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+function generateShortCode(): string {
+  return Math.random().toString(36).substring(2, 8);
 }
 
-export async function POST(req: NextRequest) {
-  const { longUrl } = await req.json();
+export async function POST(request: NextRequest) {
+  try {
+    const { longUrl } = await request.json();
 
-  let shortCode;
-  let existing;
+    if (!longUrl) {
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    }
 
-  do {
-    shortCode = generateShortCode();
-    existing = await prisma.link.findUnique({ where: { shortCode } });
-  } while (existing);
+    // Check if URL already exists
+    const existingLink = await prisma.link.findFirst({
+      where: { longUrl }
+    });
 
-  const newLink = await prisma.link.create({
-    data: { longUrl, shortCode },
-  });
+    if (existingLink) {
+      return NextResponse.json({ 
+        shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/${existingLink.shortCode}` 
+      });
+    }
 
-  return NextResponse.json({ shortUrl: `${req.nextUrl.origin}/${shortCode}` });
+    // Generate unique short code
+    let shortCode = generateShortCode();
+    let attempts = 0;
+    
+    while (attempts < 5) {
+      const existing = await prisma.link.findUnique({
+        where: { shortCode }
+      });
+      
+      if (!existing) break;
+      
+      shortCode = generateShortCode();
+      attempts++;
+    }
+
+    // Create new link
+    const link = await prisma.link.create({
+      data: {
+        longUrl,
+        shortCode,
+      },
+    });
+
+    return NextResponse.json({ 
+      shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/${link.shortCode}` 
+    });
+
+  } catch (error) {
+    console.error('Database error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
